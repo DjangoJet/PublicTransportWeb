@@ -1,9 +1,11 @@
 import bs4
 import requests
 from mongoengine import *
+from bson.objectid import ObjectId
 import datetime
 
 class LineStop(EmbeddedDocument):
+    _id = ObjectIdField(required=True, default=ObjectId,unique=True, primary_key=True)
     title = StringField(required=True)
     time = StringField()
     url = StringField(required=True)
