@@ -1,11 +1,26 @@
 import bs4
-# import pymongo
-# import json
 import requests
+from mongoengine import *
+import datetime
+
+class LineStop(EmbeddedDocument):
+    title = StringField(required=True)
+    time = StringField()
+    url = StringField(required=True)
+
+class Line(Document):
+    number = StringField(required=True)
+    url = StringField(required=True)
+    leftTable = EmbeddedDocumentListField(LineStop, default=[])
+    rightTable = EmbeddedDocumentListField(LineStop, default=[])
+    published = DateTimeField(default=datetime.datetime.now)
+
+
 
 class getAllLine():
     def __init__(self,zditmURL):
         self.zditmURL = zditmURL
+        # connect('publictransportwebdb', host='localhost', port=27017)
         self.getBS()
         
 
@@ -19,47 +34,66 @@ class getAllLine():
     def getLines(self):
         for table in self.zditmBS.find_all('ul',{'class':'listalinii'}):
             for line in table:
-                print(line.a.text + ': ' + line.a.attrs['href']+'\n')
+                linePost = Line(number=line.a.text, url=line.a.attrs['href'])
+                linePost = self.getLineStops(line.a.attrs['href'],linePost)
+                linePost.save()
 
-    def getLineStops(self,lineURL):
-        lineStopsBS = bs4.BeautifulSoup(requests.get(lineURL).text,'html.parser')
+    def getLineStops(self,lineURL,line):
+        lineStopsBS = bs4.BeautifulSoup(requests.get('https://www.zditm.szczecin.pl/' + lineURL).text,'html.parser')
         
         #print left table 
         lineTableLeft = lineStopsBS.find('div',{'class':'trasywierszelewo'})
         tableLeft = lineTableLeft.find_all('tr',{'class': None})
         for table in tableLeft:
-            czas = table.find('td',{'class': 'czas'})
+            time = table.find('td',{'class': 'czas'})
+            busStop = table.find('td',{'class': 'przystanek'})
 
-            przystanek = table.find('td',{'class': 'przystanek'})
+            timeDic = ''
+            titleDic = ''
+            urlDic = ''
             try:
-                if przystanek.a.find('span',{'class':'przystanekdod'}) == None:
+                if busStop.a.find('span',{'class':'przystanekdod'}) == None:
                     try:
-                        print(czas.text + ': ',end = '')
+                        timeDic = time.text
                     except:
                         pass
-                    print(przystanek.text + ': ' + przystanek.a.attrs['href'])
+                    titleDic = busStop.text
+                    urlDic = busStop.a.attrs['href']
             except:
                 pass
-
-        print('\n')
+            if titleDic and urlDic:
+                line.leftTable.create(title=titleDic, time=timeDic, url=urlDic)
 
         #print left table 
         lineTableRight = lineStopsBS.find('div',{'class':'trasywierszeprawo'})
         tableRight = lineTableRight.find_all('tr',{'class': None})
         for table in tableRight:
-            czas = table.find('td',{'class': 'czas'})
+            time = table.find('td',{'class': 'czas'})
+            busStop = table.find('td',{'class': 'przystanek'})
 
-            przystanek = table.find('td',{'class': 'przystanek'})
+            timeDic = ''
+            titleDic = ''
+            urlDic = ''
             try:
-                if przystanek.a.find('span',{'class':'przystanekdod'}) == None:
+                if busStop.a.find('span',{'class':'przystanekdod'}) == None:
                     try:
-                        print(czas.text + ': ',end = '')
+                        timeDic = time.text
                     except:
                         pass
-                    print(przystanek.text + ': ' + przystanek.a.attrs['href'])
+                    titleDic = busStop.text
+                    urlDic = busStop.a.attrs['href']
             except:
                 pass
+            if titleDic and urlDic:
+                line.rightTable.create(title=titleDic, time=timeDic, url=urlDic)
 
+        return line
 basicURL = "https://www.zditm.szczecin.pl/pl/pasazer/rozklady-jazdy,wedlug-linii"
+connect('publictransportwebdb', host='localhost', port=27017)
 abc = getAllLine(basicURL)
-abc.getLine('https://www.zditm.szczecin.pl/pl/pasazer/rozklady-jazdy,linia,2')
+abc.getLines()
+# print('\n\n\n')
+# abc.getLines()
+# linePost = Line(number='1', url='pl/pasazer/rozklady-jazdy,linia,1')
+# linePost = abc.getLineStops('pl/pasazer/rozklady-jazdy,linia,1',linePost)
+# linePost.save()
